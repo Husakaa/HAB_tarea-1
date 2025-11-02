@@ -1,0 +1,10 @@
+source,native,name,p_value,significant,description,term_size,query_size,intersection_size,effective_domain_size,precision,recall,query,parents
+REAC,REAC:R-HSA-9837999,Mitochondrial protein degradation,0.0008636321484378895,True,Mitochondrial protein degradation,98,2,2,11004,1.0,0.02040816326530612,query_1,['REAC:R-HSA-392499']
+REAC,REAC:R-HSA-1428517,Aerobic respiration and respiratory electron transport,0.0019747431494262506,True,Aerobic respiration and respiratory electron transport,209,2,2,11004,1.0,0.009569377990430622,query_1,['REAC:R-HSA-1430728']
+REAC,REAC:R-HSA-163210,Formation of ATP by chemiosmotic coupling,0.011986371120556154,True,Formation of ATP by chemiosmotic coupling,18,2,1,11004,0.5,0.05555555555555555,query_1,['REAC:R-HSA-1428517']
+REAC,REAC:R-HSA-8949613,Cristae formation,0.015473242765521894,True,Cristae formation,31,2,1,11004,0.5,0.03225806451612903,query_1,['REAC:R-HSA-1592230']
+REAC,REAC:R-HSA-6799198,Complex I biogenesis,0.022733712655545735,True,Complex I biogenesis,57,2,1,11004,0.5,0.017543859649122806,query_1,['REAC:R-HSA-611105']
+REAC,REAC:R-HSA-1592230,Mitochondrial biogenesis,0.03019829505978672,True,Mitochondrial biogenesis,91,2,1,11004,0.5,0.01098901098901099,query_1,['REAC:R-HSA-1852241']
+REAC,REAC:R-HSA-611105,Respiratory electron transport,0.03182701601522845,True,Respiratory electron transport,112,2,1,11004,0.5,0.008928571428571428,query_1,['REAC:R-HSA-1428517']
+REAC,REAC:R-HSA-1430728,Metabolism,0.044495922424426314,True,Metabolism,2100,2,2,11004,1.0,0.0009523809523809524,query_1,['REAC:0000000']
+REAC,REAC:R-HSA-392499,Metabolism of proteins,0.044495922424426314,True,Metabolism of proteins,2064,2,2,11004,1.0,0.0009689922480620155,query_1,['REAC:0000000']

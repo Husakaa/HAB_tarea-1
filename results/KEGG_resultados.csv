@@ -1,0 +1,13 @@
+source,native,name,p_value,significant,description,term_size,query_size,intersection_size,effective_domain_size,precision,recall,query,parents
+KEGG,KEGG:00190,Oxidative phosphorylation,5.780604207003501e-05,True,Oxidative phosphorylation,134,3,3,8484,1.0,0.022388059701492536,query_1,['KEGG:00000']
+KEGG,KEGG:05415,Diabetic cardiomyopathy,7.57200119024221e-05,True,Diabetic cardiomyopathy,202,3,3,8484,1.0,0.01485148514851485,query_1,['KEGG:00000']
+KEGG,KEGG:05208,Chemical carcinogenesis - reactive oxygen species,7.57200119024221e-05,True,Chemical carcinogenesis - reactive oxygen species,221,3,3,8484,1.0,0.013574660633484163,query_1,['KEGG:00000']
+KEGG,KEGG:04714,Thermogenesis,7.57200119024221e-05,True,Thermogenesis,232,3,3,8484,1.0,0.01293103448275862,query_1,['KEGG:00000']
+KEGG,KEGG:05020,Prion disease,8.060777781413214e-05,True,Prion disease,271,3,3,8484,1.0,0.01107011070110701,query_1,['KEGG:00000']
+KEGG,KEGG:05012,Parkinson disease,8.060777781413214e-05,True,Parkinson disease,265,3,3,8484,1.0,0.011320754716981131,query_1,['KEGG:00000']
+KEGG,KEGG:05016,Huntington disease,9.861906382562679e-05,True,Huntington disease,305,3,3,8484,1.0,0.009836065573770493,query_1,['KEGG:00000']
+KEGG,KEGG:05014,Amyotrophic lateral sclerosis,0.0001457052748845521,True,Amyotrophic lateral sclerosis,363,3,3,8484,1.0,0.008264462809917356,query_1,['KEGG:00000']
+KEGG,KEGG:05010,Alzheimer disease,0.0001509983806608559,True,Alzheimer disease,382,3,3,8484,1.0,0.007853403141361256,query_1,['KEGG:00000']
+KEGG,KEGG:05022,Pathways of neurodegeneration - multiple diseases,0.0002600305323712855,True,Pathways of neurodegeneration - multiple diseases,474,3,3,8484,1.0,0.006329113924050633,query_1,['KEGG:00000']
+KEGG,KEGG:01100,Metabolic pathways,0.008095126541195612,True,Metabolic pathways,1537,3,3,8484,1.0,0.001951854261548471,query_1,['KEGG:00000']
+KEGG,KEGG:04260,Cardiac muscle contraction,0.038066189420097596,True,Cardiac muscle contraction,87,3,1,8484,0.3333333333333333,0.011494252873563218,query_1,['KEGG:00000']
