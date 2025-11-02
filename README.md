@@ -44,7 +44,7 @@ proyecto/
 ├── data/
 │   └── genes_input.txt
 ├── scripts/
-│   └── enrichment_analysis.Rmd    ← Este archivo
+│   └── enrichment_analysis.Rmd    
 │   └── functional_analysis.py
 ├── results/
 │   ├── validacion_genes.csv
@@ -52,7 +52,7 @@ proyecto/
 │   ├── GO_BP_resultados.csv
 │   ├── KEGG_resultados.csv
 │   ├── REAC_resultados.csv
-│   └── R/                         ← Outputs de este análisis
+│   └── R/                         
 │       ├── *.png
 │       └── *.csv
 ├── requirements.txt
