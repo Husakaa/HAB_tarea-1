@@ -1,0 +1,908 @@
+---
+title: "Análisis de Enriquecimiento Funcional de Genes"
+author: "Hugo Salas Calderón"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    fig_caption: yes
+    number_sections: yes
+    toc: yes
+    toc_float: yes
+    toc_depth: 3
+    theme: flatly
+    code_folding: "hide"
+---
+
+```{r setup, include=FALSE, echo=FALSE}
+
+###############################
+## Configuración del entorno ##
+###############################
+
+# Limpia la memoria RAM
+rm(list = ls())
+
+# Carga las librerías necesarias
+if(!require(knitr, quietly = TRUE)){
+  install.packages("knitr", dependencies=TRUE)
+  library("knitr")
+}
+
+if(!require(readr, quietly = TRUE)){
+  install.packages("readr", dependencies=TRUE)
+  library("readr")
+}
+
+if(!require(tidyr, quietly = TRUE)){
+  install.packages("tidyr", dependencies=TRUE)
+  library("tidyr")
+}
+
+if(!require(dplyr, quietly = TRUE)){
+  install.packages("dplyr", dependencies=TRUE)
+  library("dplyr")
+}
+
+if(!require(kableExtra, quietly = TRUE)){
+  install.packages("kableExtra", dependencies=TRUE)
+  library("kableExtra")
+}
+
+if(!require(ggplot2, quietly = TRUE)){
+  install.packages("ggplot2", dependencies=TRUE)
+  library("ggplot2")
+}
+
+if(!require(scales, quietly = TRUE)){
+  install.packages("scales", dependencies=TRUE)
+  library("scales")
+}
+
+if(!require(RColorBrewer, quietly = TRUE)){
+  install.packages("RColorBrewer", dependencies=TRUE)
+  library("RColorBrewer")
+}
+
+# Para añadir mensajes de información
+knit_hooks$set(
+   message = function(x, options) {
+     paste('\n\n<div class="alert alert-info">',
+           gsub('##', '\n', paste("**Nota:**", x)),
+           '</div>', sep = '\n')
+   }
+)
+
+# Configuración para la visualización de imágenes y código
+opts_chunk$set(echo = TRUE,
+               collapse = FALSE,
+               fig.align = 'center',
+               out.width = '80%',
+               fig.show = 'hold',
+               message = FALSE,
+               warning = FALSE
+)
+
+# Identificación del ordenador donde se ejecuta
+my_computer <- Sys.info()[c(1, 4, 5, 7)]
+
+# Crear directorio de salida para gráficos
+dir.create("../results/R", recursive = TRUE, showWarnings = FALSE)
+
+###############################
+########  Funciones  ##########
+###############################
+
+# Función para leer archivos CSV de resultados
+leer_resultados <- function(archivo, directorio = "../results") {
+  ruta <- file.path(directorio, archivo)
+  if (!file.exists(ruta)) {
+    stop(paste("Error: No se encontró el archivo", ruta))
+  }
+  datos <- read_csv(ruta, show_col_types = FALSE)
+  return(datos)
+}
+
+# Función para guardar gráficos
+guardar_grafico <- function(plot, nombre_archivo, width = 10, height = 8, dpi = 300) {
+  ruta <- file.path("../results/R", nombre_archivo)
+  ggsave(ruta, plot, width = width, height = height, dpi = dpi)
+  message(paste("Gráfico guardado:", ruta))
+}
+
+# Función para exportar CSV
+exportar_csv <- function(datos, nombre_archivo) {
+  ruta <- file.path("../results/R", nombre_archivo)
+  write_csv(datos, ruta)
+  message(paste("CSV exportado:", ruta))
+}
+
+```
+
+
+# Introducción
+
+Este informe presenta el análisis de enriquecimiento funcional de genes realizado mediante el script `functional_analysis.py`. El análisis utiliza **g:Profiler** para consultar las bases de datos:
+
+- **GO:BP** (Gene Ontology - Biological Process)
+- **KEGG** (Kyoto Encyclopedia of Genes and Genomes)
+- **REAC** (Reactome Pathway Database)
+
+El objetivo es identificar procesos biológicos, vías metabólicas y vías de reacción significativamente enriquecidas en el conjunto de genes analizado.
+
+## Metodología
+
+### Pipeline de análisis
+
+El análisis se realizó en dos fases:
+
+**Fase 1: Análisis funcional (Python)**
+
+- Validación de genes con MyGene.info
+- Búsqueda automática de variantes mitocondriales (ND1 → MT-ND1)
+- Análisis de enriquecimiento con g:Profiler (FDR < 0.05)
+- Exportación de resultados por base de datos
+
+**Fase 2: Análisis estadístico y visualización (R)**
+
+Este documento procesa y visualiza los resultados para:
+
+- Análisis exploratorio de datos
+- Generación de visualizaciones
+- Análisis comparativo entre bases de datos
+- Identificación de patrones funcionales
+
+
+# Entorno de ejecución {.tabset .tabset-fade .tabset-pills}
+
+## Información del sistema
+
+La ejecución se ha hecho en el siguiente ordenador: 
+
+<div class='alert alert-info'>
+`r paste0(
+    " | | | ", "\n",
+    "---: | :--- | ---: | :---", "\n",
+    "OS  | **", .Platform$OS.type, "** | ",
+    "OS version             | **", osVersion,      "**\n",
+    names(my_computer)[1], "| **", my_computer[1], "** | ",
+    names(my_computer)[2], "| **", my_computer[2], "**\n",
+    names(my_computer)[3], "| **", my_computer[3], "** | ",
+    names(my_computer)[4], "| **", my_computer[4], "**\n",
+    "Graphical interface    | **", .Platform$GUI,  "** | ",
+    "R version              | **", R.version.string, "**"
+) `.
+</div>
+
+## Estructura de directorios
+
+```
+proyecto/
+├── data/
+│   └── genes_input.txt
+├── scripts/
+│   └── enrichment_analysis.Rmd    ← Este archivo
+│   └── functional_analysis.py
+├── results/
+│   ├── validacion_genes.csv
+│   ├── resultados_completos.csv
+│   ├── GO_BP_resultados.csv
+│   ├── KEGG_resultados.csv
+│   ├── REAC_resultados.csv
+│   └── R/                         ← Outputs de este análisis
+│       ├── *.png
+│       └── *.csv
+├── requirements.txt
+├── README.md
+```
+
+
+# Carga de datos
+
+```{r carga_datos}
+
+# Verificar que los archivos existen
+archivos_requeridos <- c(
+  "validacion_genes.csv",
+  "resultados_completos.csv",
+  "GO_BP_resultados.csv",
+  "KEGG_resultados.csv",
+  "REAC_resultados.csv"
+)
+
+archivos_faltantes <- c()
+for (archivo in archivos_requeridos) {
+  if (!file.exists(file.path("../results", archivo))) {
+    archivos_faltantes <- c(archivos_faltantes, archivo)
+  }
+}
+
+if (length(archivos_faltantes) > 0) {
+  stop(paste("Error: Archivos faltantes en ../results/:\n", 
+             paste(archivos_faltantes, collapse = "\n")))
+}
+
+# Leer validación de genes
+validacion <- leer_resultados("validacion_genes.csv")
+
+# Leer resultados completos
+resultados <- leer_resultados("resultados_completos.csv")
+
+# Leer por base de datos
+go_bp <- leer_resultados("GO_BP_resultados.csv")
+kegg <- leer_resultados("KEGG_resultados.csv")
+reactome <- leer_resultados("REAC_resultados.csv")
+```
+
+## Resumen de datos cargados
+
+<div class='alert alert-success'>
+
+**Datos cargados exitosamente**
+
+- **Genes validados:** `r nrow(validacion)` genes
+- **Términos enriquecidos:** `r nrow(resultados)` términos
+  - GO:BP: `r nrow(go_bp)` términos
+  - KEGG: `r nrow(kegg)` términos
+  - Reactome: `r nrow(reactome)` términos
+
+</div>
+
+
+# Validación de genes
+
+## Tabla de validación
+
+```{r tabla_validacion}
+
+# Crear tabla con colores condicionales
+tabla_val <- validacion %>%
+  mutate(
+    gen_input = cell_spec(gen_input, bold = TRUE, color = "black"),
+    gen_validado = cell_spec(
+      gen_validado, 
+      bold = TRUE, 
+      color = ifelse(estado == "valido", "#27ae60", "#e74c3c")
+    ),
+    estado = cell_spec(
+      estado,
+      bold = TRUE,
+      background = ifelse(estado == "valido", "#d5f4e6", "#fadbd8")
+    )
+  )
+
+# Renderizar tabla
+tabla_val %>%
+  kbl(
+    caption = "Validación y conversión de identificadores de genes",
+    escape = FALSE,
+    align = "c"
+  ) %>%
+  kable_styling(
+    bootstrap_options = c("striped", "hover", "condensed", "responsive"),
+    full_width = FALSE,
+    position = "center",
+    font_size = 13
+  ) %>%
+  row_spec(0, bold = TRUE, color = "white", background = "#3498db")
+
+```
+
+## Resumen de validación
+
+```{r resumen_validacion}
+
+# Estadísticas de validación
+n_validos <- sum(validacion$estado == "valido", na.rm = TRUE)
+n_no_encontrados <- sum(validacion$estado == "no_encontrado", na.rm = TRUE)
+n_convertidos <- sum(validacion$gen_input != validacion$gen_validado & 
+                     validacion$estado == "valido", na.rm = TRUE)
+
+```
+
+<div class='alert alert-success'>
+
+**Resumen de validación:**
+
+- **Genes válidos:** `r n_validos` de `r nrow(validacion)` genes
+- **Genes convertidos:** `r n_convertidos` (ej. ND1 → MT-ND1)
+- **Genes no encontrados:** `r n_no_encontrados`
+
+`r if(n_no_encontrados > 0) paste("⚠️ **Atención:** Hay", n_no_encontrados, "gen(es) que no se pudieron validar.")`
+
+</div>
+
+
+# Análisis exploratorio {.tabset .tabset-fade .tabset-pills}
+
+## Distribución de p-valores
+
+```{r distribucion_pvalores, fig.height=6, fig.width=10, fig.cap="**Figura 1**: Distribución de p-valores ajustados de los términos enriquecidos"}
+
+# Crear histograma
+p1 <- ggplot(resultados, aes(x = -log10(p_value))) +
+  geom_histogram(bins = 30, fill = "#3498db", color = "white", alpha = 0.8) +
+  geom_vline(xintercept = -log10(0.05), linetype = "dashed", 
+             color = "#e74c3c", size = 1.2) +
+  annotate("text", x = -log10(0.05), y = Inf, 
+           label = "p = 0.05", vjust = 1.5, hjust = -0.1, 
+           color = "#e74c3c", fontface = "bold", size = 4) +
+  theme_minimal(base_size = 13) +
+  labs(
+    title = "Distribución de P-valores Ajustados",
+    subtitle = sprintf("Total de términos enriquecidos: %d", nrow(resultados)),
+    x = "-log10(P-valor ajustado)",
+    y = "Frecuencia"
+  ) +
+  theme(
+    plot.title = element_text(face = "bold", hjust = 0.5, size = 16),
+    plot.subtitle = element_text(hjust = 0.5, size = 12, color = "gray40"),
+    axis.title = element_text(face = "bold", size = 13),
+    panel.grid.minor = element_blank()
+  )
+
+print(p1)
+
+# Guardar gráfico
+guardar_grafico(p1, "distribucion_pvalores.png", width = 10, height = 6)
+
+```
+
+## Estadísticas por base de datos
+
+```{r stats_bd, fig.height=6, fig.width=10}
+
+# Calcular estadísticas por base de datos
+stats_bd <- resultados %>%
+  group_by(source) %>%
+  summarise(
+    n_terminos = n(),
+    p_mediana = median(p_value),
+    p_minimo = min(p_value),
+    genes_promedio = round(mean(intersection_size), 1),
+    genes_max = max(intersection_size),
+    .groups = 'drop'
+  ) %>%
+  arrange(desc(n_terminos))
+
+# Crear tabla
+stats_bd %>%
+  mutate(
+    source = cell_spec(source, bold = TRUE, color = "white",
+                      background = case_when(
+                        source == "GO:BP" ~ "#e74c3c",
+                        source == "KEGG" ~ "#3498db",
+                        source == "REAC" ~ "#2ecc71",
+                        TRUE ~ "#95a5a6"
+                      )),
+    p_mediana = sprintf("%.2e", p_mediana),
+    p_minimo = sprintf("%.2e", p_minimo)
+  ) %>%
+  kbl(
+    caption = "Estadísticas descriptivas por base de datos",
+    escape = FALSE,
+    align = c("l", "c", "c", "c", "c", "c"),
+    col.names = c("Base de Datos", "N° Términos", "P-valor Mediana", 
+                  "P-valor Mínimo", "Genes Promedio", "Genes Máximo")
+  ) %>%
+  kable_styling(
+    bootstrap_options = c("striped", "hover", "condensed"),
+    full_width = FALSE,
+    position = "center",
+    font_size = 12
+  ) %>%
+  row_spec(0, bold = TRUE, color = "white", background = "#34495e")
+
+# Exportar tabla
+exportar_csv(stats_bd, "resumen_estadisticas_bd.csv")
+
+```
+
+
+# Top términos enriquecidos
+
+## Top 20 términos globales
+
+```{r top20_terminos, fig.height=10, fig.width=12, fig.cap="**Figura 2**: Top 20 términos más significativos (todas las bases de datos)"}
+
+# Seleccionar top 20
+top20 <- resultados %>%
+  arrange(p_value) %>%
+  head(20) %>%
+  mutate(
+    name_short = ifelse(nchar(name) > 55, 
+                        paste0(substr(name, 1, 52), "..."), 
+                        name),
+    neg_log_p = -log10(p_value)
+  )
+
+# Colores por base de datos
+colores_bd <- c("GO:BP" = "#e74c3c", "KEGG" = "#3498db", "REAC" = "#2ecc71")
+
+# Crear gráfico
+p2 <- ggplot(top20, aes(x = neg_log_p, 
+                         y = reorder(name_short, neg_log_p),
+                         fill = source)) +
+  geom_bar(stat = "identity", alpha = 0.85) +
+  scale_fill_manual(values = colores_bd, name = "Base de Datos") +
+  theme_minimal(base_size = 12) +
+  labs(
+    title = "Top 20 Términos Más Significativos",
+    subtitle = "Coloreados por base de datos de origen",
+    x = "-log10(P-valor ajustado)",
+    y = ""
+  ) +
+  theme(
+    plot.title = element_text(face = "bold", hjust = 0.5, size = 16),
+    plot.subtitle = element_text(hjust = 0.5, size = 12, color = "gray40"),
+    axis.text.y = element_text(size = 10),
+    axis.title = element_text(face = "bold", size = 13),
+    legend.position = "bottom",
+    legend.title = element_text(face = "bold"),
+    panel.grid.minor = element_blank()
+  )
+
+print(p2)
+
+# Guardar gráfico
+guardar_grafico(p2, "top20_terminos.png", width = 12, height = 10)
+
+```
+
+## Tabla de top 10 términos
+
+```{r tabla_top10}
+
+# Top 10 para tabla detallada
+top10_tabla <- resultados %>%
+  arrange(p_value) %>%
+  head(10) %>%
+  select(source, name, p_value, intersection_size, term_size)
+
+# Crear tabla
+top10_tabla %>%
+  mutate(
+    source = cell_spec(source, bold = TRUE, color = "white",
+                      background = case_when(
+                        source == "GO:BP" ~ "#e74c3c",
+                        source == "KEGG" ~ "#3498db",
+                        source == "REAC" ~ "#2ecc71"
+                      )),
+    name = substr(name, 1, 60),
+    p_value = cell_spec(sprintf("%.2e", p_value), 
+                       color = ifelse(p_value < 0.001, "#e74c3c", "black"),
+                       bold = ifelse(p_value < 0.001, TRUE, FALSE)),
+    ratio = sprintf("%d/%d", intersection_size, term_size)
+  ) %>%
+  select(-term_size) %>%
+  kbl(
+    caption = "Top 10 términos más significativos - Detalles",
+    escape = FALSE,
+    align = c("c", "l", "c", "c", "c"),
+    col.names = c("Base de Datos", "Nombre del Término", "P-valor", 
+                  "N° Genes", "Ratio")
+  ) %>%
+  kable_styling(
+    bootstrap_options = c("striped", "hover", "condensed"),
+    full_width = TRUE,
+    font_size = 11
+  ) %>%
+  row_spec(0, bold = TRUE, color = "white", background = "#34495e") %>%
+  column_spec(2, width = "25em")
+
+```
+
+
+# Análisis por base de datos {.tabset .tabset-fade .tabset-pills}
+
+## Gene Ontology
+
+```{r go_bp_analysis, fig.height=8, fig.width=10, fig.cap="**Figura 3**: Top 15 procesos biológicos (Gene Ontology)"}
+
+if (nrow(go_bp) > 0) {
+  
+  # Top 15 GO:BP
+  top_go <- go_bp %>%
+    arrange(p_value) %>%
+    head(15) %>%
+    mutate(
+      name_short = ifelse(nchar(name) > 50, 
+                          paste0(substr(name, 1, 47), "..."), 
+                          name),
+      neg_log_p = -log10(p_value)
+    )
+  
+  # Gráfico GO:BP
+  p3 <- ggplot(top_go, aes(x = neg_log_p, 
+                            y = reorder(name_short, neg_log_p),
+                            fill = intersection_size)) +
+    geom_bar(stat = "identity", alpha = 0.85) +
+    scale_fill_gradient(low = "#fce4ec", high = "#e74c3c", 
+                        name = "N° Genes") +
+    theme_minimal(base_size = 12) +
+    labs(
+      title = "Gene Ontology: Procesos Biológicos",
+      subtitle = sprintf("Top 15 de %d términos GO:BP enriquecidos", nrow(go_bp)),
+      x = "-log10(P-valor ajustado)",
+      y = ""
+    ) +
+    theme(
+      plot.title = element_text(face = "bold", hjust = 0.5, size = 16),
+      plot.subtitle = element_text(hjust = 0.5, size = 11, color = "gray40"),
+      axis.text.y = element_text(size = 10),
+      axis.title = element_text(face = "bold", size = 13),
+      legend.position = "right",
+      panel.grid.minor = element_blank()
+    )
+  
+  print(p3)
+  
+  # Guardar gráfico
+  guardar_grafico(p3, "go_bp_top15.png", width = 10, height = 8)
+  
+} else {
+  cat("No se encontraron términos GO:BP enriquecidos.\n")
+}
+
+```
+
+## KEGG Pathways
+
+```{r kegg_analysis, fig.height=6, fig.width=10, fig.cap="**Figura 4**: Vías metabólicas KEGG"}
+
+if (nrow(kegg) > 0) {
+  
+  # Procesar KEGG
+  top_kegg <- kegg %>%
+    arrange(p_value) %>%
+    head(min(15, nrow(kegg))) %>%
+    mutate(
+      name_short = ifelse(nchar(name) > 50, 
+                          paste0(substr(name, 1, 47), "..."), 
+                          name),
+      neg_log_p = -log10(p_value)
+    )
+  
+  # Gráfico KEGG - Dot plot
+  p4 <- ggplot(top_kegg, aes(x = neg_log_p, 
+                              y = reorder(name_short, neg_log_p))) +
+    geom_segment(aes(x = 0, xend = neg_log_p, 
+                     y = name_short, yend = name_short),
+                 color = "gray70", size = 1) +
+    geom_point(aes(size = intersection_size, fill = intersection_size),
+               shape = 21, color = "white", alpha = 0.9) +
+    scale_fill_gradient(low = "#e3f2fd", high = "#3498db", 
+                        name = "N° Genes") +
+    theme_minimal(base_size = 12) +
+    labs(
+      title = "KEGG: Vías Metabólicas",
+      subtitle = sprintf("Total de %d vías KEGG enriquecidas", nrow(kegg)),
+      x = "-log10(P-valor ajustado)",
+      y = ""
+    ) +
+    theme(
+      plot.title = element_text(face = "bold", hjust = 0.5, size = 16),
+      plot.subtitle = element_text(hjust = 0.5, size = 11, color = "gray40"),
+      axis.text.y = element_text(size = 10),
+      axis.title = element_text(face = "bold", size = 13),
+      legend.position = "right",
+      panel.grid.minor = element_blank()
+    )
+  
+  print(p4)
+  
+  # Guardar gráfico
+  guardar_grafico(p4, "kegg_pathways.png", width = 10, height = 6)
+  
+} else {
+  cat("No se encontraron vías KEGG enriquecidas.\n")
+}
+
+```
+
+## Reactome Pathways
+
+```{r reactome_analysis, fig.height=8, fig.width=10, fig.cap="**Figura 5**: Vías de reacción Reactome"}
+
+if (nrow(reactome) > 0) {
+  
+  # Top Reactome
+  top_reac <- reactome %>%
+    arrange(p_value) %>%
+    head(15) %>%
+    mutate(
+      name_short = ifelse(nchar(name) > 50, 
+                          paste0(substr(name, 1, 47), "..."), 
+                          name),
+      neg_log_p = -log10(p_value)
+    )
+  
+  # Gráfico Reactome
+  p5 <- ggplot(top_reac, aes(x = neg_log_p, 
+                              y = reorder(name_short, neg_log_p),
+                              fill = intersection_size)) +
+    geom_bar(stat = "identity", alpha = 0.85) +
+    scale_fill_gradient(low = "#e8f5e9", high = "#2ecc71", 
+                        name = "N° Genes") +
+    theme_minimal(base_size = 12) +
+    labs(
+      title = "Reactome: Vías de Reacción",
+      subtitle = sprintf("Top 15 de %d vías Reactome enriquecidas", nrow(reactome)),
+      x = "-log10(P-valor ajustado)",
+      y = ""
+    ) +
+    theme(
+      plot.title = element_text(face = "bold", hjust = 0.5, size = 16),
+      plot.subtitle = element_text(hjust = 0.5, size = 11, color = "gray40"),
+      axis.text.y = element_text(size = 10),
+      axis.title = element_text(face = "bold", size = 13),
+      legend.position = "right",
+      panel.grid.minor = element_blank()
+    )
+  
+  print(p5)
+  
+  # Guardar gráfico
+  guardar_grafico(p5, "reactome_pathways.png", width = 10, height = 8)
+  
+} else {
+  cat("No se encontraron vías Reactome enriquecidas.\n")
+}
+
+```
+
+
+# Comparación entre bases de datos
+
+```{r comparacion_bd, fig.height=6, fig.width=10, fig.cap="**Figura 6**: Comparación del número de términos enriquecidos por base de datos"}
+
+# Resumen por base de datos
+comparacion <- resultados %>%
+  group_by(source) %>%
+  summarise(
+    n_terminos = n(),
+    p_mediana = median(p_value),
+    .groups = 'drop'
+  ) %>%
+  arrange(desc(n_terminos))
+
+# Gráfico comparativo
+p6 <- ggplot(comparacion, aes(x = reorder(source, n_terminos), 
+                               y = n_terminos, 
+                               fill = source)) +
+  geom_bar(stat = "identity", show.legend = FALSE, alpha = 0.85, width = 0.7) +
+  geom_text(aes(label = n_terminos), hjust = -0.3, 
+            size = 5, fontface = "bold", color = "gray30") +
+  coord_flip() +
+  scale_fill_manual(values = colores_bd) +
+  theme_minimal(base_size = 13) +
+  labs(
+    title = "Términos Enriquecidos por Base de Datos",
+    subtitle = sprintf("Total: %d términos significativos", nrow(resultados)),
+    x = "Base de Datos",
+    y = "Número de Términos"
+  ) +
+  theme(
+    plot.title = element_text(face = "bold", hjust = 0.5, size = 16),
+    plot.subtitle = element_text(hjust = 0.5, size = 12, color = "gray40"),
+    axis.text = element_text(size = 12),
+    axis.title = element_text(face = "bold", size = 13),
+    panel.grid.minor = element_blank()
+  ) +
+  ylim(0, max(comparacion$n_terminos) * 1.15)
+
+print(p6)
+
+# Guardar gráfico
+guardar_grafico(p6, "comparacion_bases_datos.png", width = 10, height = 6)
+
+```
+
+
+# Análisis de convergencia funcional
+
+```{r analisis_convergencia}
+
+# Buscar términos relacionados con función mitocondrial
+palabras_clave <- c("mitochondrial", "respiratory", "oxidative", "ATP", 
+                    "electron", "energy", "phosphorylation", "NADH",
+                    "complex", "cytochrome")
+
+# Filtrar términos mitocondriales
+terminos_mitocondriales <- resultados %>%
+  filter(stringr::str_detect(tolower(name), 
+                            paste(palabras_clave, collapse = "|"))) %>%
+  arrange(p_value)
+
+# Resumen por base de datos
+resumen_mito <- terminos_mitocondriales %>%
+  group_by(source) %>%
+  summarise(n_terminos = n(), .groups = 'drop')
+
+# Tabla de resumen
+if (nrow(resumen_mito) > 0) {
+  resumen_mito %>%
+    mutate(
+      source = cell_spec(source, bold = TRUE, color = "white",
+                        background = case_when(
+                          source == "GO:BP" ~ "#e74c3c",
+                          source == "KEGG" ~ "#3498db",
+                          source == "REAC" ~ "#2ecc71"
+                        )),
+      porcentaje = sprintf("%.1f%%", n_terminos / nrow(resultados) * 100)
+    ) %>%
+    kbl(
+      caption = "Términos relacionados con función mitocondrial/respiratoria",
+      escape = FALSE,
+      align = "c",
+      col.names = c("Base de Datos", "N° Términos", "% del Total")
+    ) %>%
+    kable_styling(
+      bootstrap_options = c("striped", "hover", "condensed"),
+      full_width = FALSE,
+      position = "center"
+    ) %>%
+    row_spec(0, bold = TRUE, color = "white", background = "#34495e")
+  
+  # Exportar términos mitocondriales
+  exportar_csv(terminos_mitocondriales, "terminos_mitocondriales.csv")
+}
+
+```
+
+<div class='alert alert-info'>
+
+**Análisis de convergencia:**
+
+Se identificaron **`r nrow(terminos_mitocondriales)`** términos relacionados con función mitocondrial y respiratoria, lo que representa el **`r round(nrow(terminos_mitocondriales)/nrow(resultados)*100, 1)`%** del total de términos enriquecidos.
+
+Esto indica `r if(nrow(terminos_mitocondriales)/nrow(resultados) > 0.5) "una alta" else "cierta"` coherencia funcional en el conjunto de genes analizado.
+
+</div>
+
+
+# Dot plot integrado
+
+```{r dotplot_integrado, fig.height=10, fig.width=12, fig.cap="**Figura 7**: Dot plot de los 30 términos más significativos"}
+
+# Top 30 para dot plot
+top30 <- resultados %>%
+  arrange(p_value) %>%
+  head(30) %>%
+  mutate(
+    name_short = ifelse(nchar(name) > 50, 
+                        paste0(substr(name, 1, 47), "..."), 
+                        name),
+    neg_log_p = -log10(p_value)
+  )
+
+# Crear dot plot
+p7 <- ggplot(top30, aes(x = neg_log_p, 
+                         y = reorder(name_short, neg_log_p),
+                         size = intersection_size,
+                         color = source)) +
+  geom_point(alpha = 0.8) +
+  scale_color_manual(values = colores_bd, name = "Base de Datos") +
+  scale_size_continuous(range = c(3, 12), name = "N° Genes") +
+  theme_minimal(base_size = 12) +
+  labs(
+    title = "Términos Enriquecidos - Dot Plot Integrado",
+    subtitle = "Top 30 términos más significativos",
+    x = "-log10(P-valor ajustado)",
+    y = ""
+  ) +
+  theme(
+    plot.title = element_text(face = "bold", hjust = 0.5, size = 16),
+    plot.subtitle = element_text(hjust = 0.5, size = 12, color = "gray40"),
+    axis.text.y = element_text(size = 9),
+    axis.title = element_text(face = "bold", size = 13),
+    legend.position = "right",
+    legend.title = element_text(face = "bold"),
+    panel.grid.minor = element_blank()
+  )
+
+print(p7)
+
+# Guardar gráfico
+guardar_grafico(p7, "dotplot_integrado.png", width = 12, height = 10)
+
+```
+
+
+
+# Conclusiones
+
+## Hallazgos principales
+
+```{r conclusiones_data, echo=FALSE}
+# Preparar datos para las conclusiones
+n_total <- nrow(resultados)
+n_go <- nrow(go_bp)
+n_kegg <- nrow(kegg)
+n_reac <- nrow(reactome)
+top_source <- comparacion$source[1]
+```
+
+1. **Validación de genes:** `r n_validos` de `r nrow(validacion)` genes fueron validados correctamente`r if(n_convertidos > 0) sprintf(", incluyendo %d conversión(es) automática(s) de genes mitocondriales", n_convertidos)`.
+
+2. **Enriquecimiento significativo:** Se identificaron **`r n_total`** términos significativamente enriquecidos (p < 0.05) distribuidos en:
+   - GO:BP: `r n_go` términos
+   - KEGG: `r n_kegg` términos
+   - Reactome: `r n_reac` términos
+
+3. **Base de datos predominante:** **`r top_source`** presentó el mayor número de términos enriquecidos (`r comparacion$n_terminos[1]` términos), sugiriendo una fuerte asociación con procesos biológicos específicos.
+
+4. **Coherencia funcional:** El `r round(nrow(terminos_mitocondriales)/nrow(resultados)*100, 1)`% de los términos están relacionados con función mitocondrial/respiratoria, indicando `r if(nrow(terminos_mitocondriales)/nrow(resultados) > 0.5) "una alta" else "cierta"` convergencia funcional.
+
+## Interpretación biológica
+
+Los resultados sugieren que el conjunto de genes analizado está involucrado principalmente en:
+
+- Procesos relacionados con la cadena de transporte de electrones
+- Fosforilación oxidativa y síntesis de ATP
+- Metabolismo energético mitocondrial
+- `r if(n_kegg > 0) "Vías metabólicas específicas identificadas en KEGG" else ""`
+- `r if(n_reac > 0) "Vías de reacción curadas en Reactome" else ""`
+
+## Archivos generados
+
+Todos los archivos de salida se han guardado en el directorio `../results/R/`:
+
+**Visualizaciones (PNG, 300 DPI):**
+
+```{r lista_archivos_generados, echo=FALSE, results='asis'}
+archivos_png <- c(
+  "distribucion_pvalores.png",
+  "top20_terminos.png",
+  if(nrow(go_bp) > 0) "go_bp_top15.png",
+  if(nrow(kegg) > 0) "kegg_pathways.png",
+  if(nrow(reactome) > 0) "reactome_pathways.png",
+  "comparacion_bases_datos.png",
+  "dotplot_integrado.png"
+)
+
+archivos_csv <- c(
+  "resumen_estadisticas_bd.csv",
+  "terminos_mitocondriales.csv"
+)
+
+cat("\n")
+for (archivo in archivos_png) {
+  if (!is.null(archivo)) {
+    cat(sprintf("- `%s`\n", archivo))
+  }
+}
+
+cat("\n**Tablas (CSV):**\n\n")
+for (archivo in archivos_csv) {
+  cat(sprintf("- `%s`\n", archivo))
+}
+```
+
+
+# Información de sesión
+
+```{r session_info}
+sessionInfo()
+```
+
+---
+
+<div class='alert alert-success'>
+
+**Análisis completado exitosamente**
+
+Este documento fue generado automáticamente usando RMarkdown. Todos los gráficos y tablas están disponibles en `../results/R/`.
+
+**Ubicación del script:** `scripts/enrichment_analysis.Rmd`  
+**Ubicación de los outputs:** `results/R/`
+
+</div>
+
+---
+
+<center>
+<small>
+*Generado el `r Sys.Date()` a las `r format(Sys.time(), "%H:%M:%S")`*  
+*Pipeline: Python (functional_analysis.py) → R (enrichment_analysis.Rmd)*
+</small>
+</center>
